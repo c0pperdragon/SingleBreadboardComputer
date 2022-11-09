@@ -1,0 +1,73 @@
+; This program needs to be assembled with the Ophis assembler 
+; using the -c option (allow 65c02 opcodes) 
+
+.outfile "boot.bin"
+.org  $8000
+
+main:
+    LDY #0
+*   LDA message,Y
+    BEQ +
+    PHY
+    JSR send
+    PLY
+    INY
+    BRA -
+*   RTS
+message: 
+    .byte "HELLO, WORLD!", 13, 10, 0
+
+    .advance $FC00, $FF
+boot:
+    SEI       ; disable interrupts
+    CMP $00   ; set output to high
+    ; initial delay to await reset bouncing
+    LDX #0
+*   INX
+    BNE -
+    ; set up stack and call user code 
+    LDX #$FF
+    TXS
+    JSR main
+    ; big delay
+    LDX #0
+    LDY #0
+*   DEY
+    BNE -
+    DEX 
+    BNE -
+    JMP boot
+    
+    ; send one byte via serial 
+    ; parameter: A 
+send:
+    EOR #$FF ; use inverted bits, so stop-bit matches up
+    LDX #10  ; send 10 bits total
+    SEC      ; prepare inverted start bit
+sendloop:                               ;  total cycles
+    BCC setoutputhigh                   ;  0     2/3
+setoutputlow:                           ;
+    INC $8000  ; multibyte-operation    ;  2     6
+    BRA setoutputdone                   ;  8     3
+setoutputhigh:
+    CMP $00    ; any access to RAM      ;  3     3
+    CMP $00                             ;  6     3
+    NOP                                 ;  9     2
+setoutputdone:
+    LDY #19                             ;  11    2
+*   DEY                                 ;  13    5*n-1 = 94
+    BNE -                               ;
+    NOP                                 ;  107   2
+    NOP                                 ;  109   2
+    NOP                                 ;  111   2
+    NOP                                 ;  113   2
+    LSR  ; next bit (when empty, 0)     ;  115   2
+    DEX                                 ;  117   2
+    BNE sendloop                        ;  119   3
+                                        ;  122 (115200 baud @14Mhz)
+    RTS
+
+    .advance $FFFA, $FF
+    .word boot   ; NMIB
+    .word boot   ; RESB
+    .word 0      ; BRK/IRQB

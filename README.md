@@ -1,2 +1,2 @@
 # SingleBreadboardComputer
-A 6502-based computer squeezed onto a single bread board.
+A 65c02-based computer squeezed onto a single bread board.
