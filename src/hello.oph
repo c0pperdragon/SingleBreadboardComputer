@@ -1,0 +1,20 @@
+; This program needs to be assembled with the Ophis assembler 
+
+.outfile "hello.bin"
+.org  $8000
+
+main: 
+    JSR getirqb
+    LDY #<message_low
+    LDX #>message_low
+    BCC +
+    LDY #<message_high
+    LDX #>message_high
+*   JSR sendstr
+    RTS
+message_low: 
+    .byte "IRQB is low", 13, 10, 0
+message_high: 
+    .byte "IRQB is high", 13, 10, 0
+
+.include "boot.oph"

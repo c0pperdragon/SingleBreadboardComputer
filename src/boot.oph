@@ -1,21 +1,4 @@
-; This program needs to be assembled with the Ophis assembler 
-; using the -c option (allow 65c02 opcodes) 
-
-.outfile "boot.bin"
-.org  $8000
-
-main:
-    LDY #0
-*   LDA message,Y
-    BEQ +
-    PHY
-    JSR send
-    PLY
-    INY
-    BRA -
-*   RTS
-message: 
-    .byte "HELLO, WORLD!", 13, 10, 0
+; Needs to be included in a user-code program (see examples)
 
     .advance $FC00, $FF
 boot:
@@ -25,20 +8,22 @@ boot:
     LDX #0
 *   INX
     BNE -
-    ; set up stack and call user code 
+    ; set up stack in case it was damaged
     LDX #$FF
     TXS
+    ; call user code 
     JSR main
-    ; big delay
+    ; delay
     LDX #0
     LDY #0
-*   DEY
+*   INY
     BNE -
-    DEX 
+    INX 
     BNE -
     JMP boot
     
     ; send one byte via serial 
+    ; does not damage any zero page data
     ; parameter: A 
 send:
     EOR #$FF ; use inverted bits, so stop-bit matches up
@@ -48,7 +33,7 @@ sendloop:                               ;  total cycles
     BCC setoutputhigh                   ;  0     2/3
 setoutputlow:                           ;
     INC $8000  ; multibyte-operation    ;  2     6
-    BRA setoutputdone                   ;  8     3
+    JMP setoutputdone                   ;  8     3
 setoutputhigh:
     CMP $00    ; any access to RAM      ;  3     3
     CMP $00                             ;  6     3
@@ -67,7 +52,56 @@ setoutputdone:
                                         ;  122 (115200 baud @14Mhz)
     RTS
 
+    ; send null-terminated string
+    ; parameter: Y,X = address of string (X = high byte)
+    ; overwrite zero page $00,$01
+sendstr:
+    ; pointer
+    STY $00
+    STX $01
+sendstrloop:
+    LDY #0
+    LDA ($00),Y
+    BEQ sendstrend
+    JSR send
+    INC $00
+    BNE sendstrloop
+    INC $01
+    JMP sendstrloop
+sendstrend:
+    RTS    
+
+    ; read state of the IRQB pin
+    ; return: value in C flag
+    ; the whole procedure takes 40 cycles including
+    ; the calling JSR
+    ; the sampling point is at 10 clocks 
+getirqb:                        ; total cycles
+    SEC                         ; 6     2
+    CLI                         ; 8     2
+      ; <- possible interrupt           19
+    SEI                         ; 10/29 2
+    BCC +                       ; 12/31 2/3
+    NOP                         ; 14    2
+    NOP                         ; 16    2
+    NOP                         ; 18    2
+    NOP                         ; 20    2
+    NOP                         ; 22    2
+    NOP                         ; 24    2
+    NOP                         ; 26    2
+    NOP                         ; 28    2
+    NOP                         ; 30    2
+    NOP                         ; 32    2
+*   RTS                         ; 34    6
+                                ; 40
+irqhandler:                     ;       
+    PLA                         ; 7     4
+    CLC                         ; 11    2
+    RTS                         ; 13    6
+                                ; 19
+
+    ; vector table
     .advance $FFFA, $FF
-    .word boot   ; NMIB
-    .word boot   ; RESB
-    .word 0      ; BRK/IRQB
+    .word boot       ; NMIB
+    .word boot       ; RESB
+    .word irqhandler ; BRK/IRQB
