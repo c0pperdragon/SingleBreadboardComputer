@@ -72,33 +72,35 @@ sendstrend:
     RTS    
 
     ; read state of the IRQB pin
-    ; return: value in C flag
-    ; the whole procedure takes 40 cycles including
+    ; return: c flag is set if the pin is low
+    ; the whole procedure takes 42 cycles including
     ; the calling JSR
     ; the sampling point is at 10 clocks 
 getirqb:                        ; total cycles
-    SEC                         ; 6     2
+    CLC                         ; 6     2
     CLI                         ; 8     2
-      ; <- possible interrupt           19
-    SEI                         ; 10/29 2
-    BCC +                       ; 12/31 2/3
-    NOP                         ; 14    2
-    NOP                         ; 16    2
-    NOP                         ; 18    2
-    NOP                         ; 20    2
-    NOP                         ; 22    2
-    NOP                         ; 24    2
-    NOP                         ; 26    2
-    NOP                         ; 28    2
-    NOP                         ; 30    2
-    NOP                         ; 32    2
-*   RTS                         ; 34    6
-                                ; 40
+      ; <- possible interrupt     10    0/22
+    SEI                         ; 10/32 2
+    BCC +                       ; 12/34 3/2
+    RTS                         ;    36 6
+*   PHA                         ; 15    4
+    PLA                         ; 19    3
+    PHA                         ; 22    4
+    PLA                         ; 26    3
+    PHA                         ; 29    4
+    PLA                         ; 33    3
+    RTS                         ; 36    6
+                                ; 42/42
+                                
+    ; Interrupt handler to trigger when the IRQB pin is low. 
+    ; It will just set the C flag (and damage the A register). 
+    ; Also it will disable interrupts upon exit.
 irqhandler:                     ;       
     PLA                         ; 7     4
-    CLC                         ; 11    2
-    RTS                         ; 13    6
-                                ; 19
+    ORA #$05                    ; 11    2
+    PHA                         ; 13    3
+    RTI                         ; 16    6
+                                ; 22
 
     ; vector table
     .advance $FFFA, $FF

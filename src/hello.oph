@@ -7,7 +7,7 @@ main:
     JSR getirqb
     LDY #<message_low
     LDX #>message_low
-    BCC +
+    BCS +
     LDY #<message_high
     LDX #>message_high
 *   JSR sendstr
