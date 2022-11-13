@@ -4,17 +4,27 @@
 .org  $8000
 
 main: 
-    JSR getirqb
-    LDY #<message_low
-    LDX #>message_low
-    BCS +
-    LDY #<message_high
-    LDX #>message_high
-*   JSR sendstr
-    RTS
-message_low: 
-    .byte "IRQB is low", 13, 10, 0
-message_high: 
-    .byte "IRQB is high", 13, 10, 0
+    LDY #<message
+    LDX #>message
+    JSR sendstr
+    LDA #47
+    JSR sendnum
+    LDA #11
+    JSR sendnum
+    LDY #<crlf
+    LDX #>crlf
+    JSR sendstr
+mainloop:    
+    LDA #0
+    JSR receive
+    JSR sendnum
+    LDA #32
+    JSR send
+    jmp mainloop
+    
+message: 
+    .byte "Hello world ", 13, 10, 0
+crlf:
+    .byte 13, 10, 0
 
 .include "boot.oph"

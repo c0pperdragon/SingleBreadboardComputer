@@ -1,4 +1,23 @@
 ; Needs to be included in a user-code program (see examples)
+; Serial communication is done with 115200 baud @ 10 Mhz CPU speed
+; (each bit takes 87 clock cycles).
+
+.macro DELAY2
+    NOP
+.macend
+.macro DELAY5
+    JMP _target 
+_target:  
+    NOP
+.macend
+.macro DELAY10
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+.macend
+
 
     .advance $FC00, $FF
 boot:
@@ -21,36 +40,7 @@ boot:
     INX 
     BNE -
     JMP boot
-    
-    ; send one byte via serial 
-    ; does not damage any zero page data
-    ; parameter: A 
-send:
-    EOR #$FF ; use inverted bits, so stop-bit matches up
-    LDX #10  ; send 10 bits total
-    SEC      ; prepare inverted start bit
-sendloop:                               ;  total cycles
-    BCC setoutputhigh                   ;  0     2/3
-setoutputlow:                           ;
-    INC $8000  ; multibyte-operation    ;  2     6
-    JMP setoutputdone                   ;  8     3
-setoutputhigh:
-    CMP $00    ; any access to RAM      ;  3     3
-    CMP $00                             ;  6     3
-    NOP                                 ;  9     2
-setoutputdone:
-    LDY #19                             ;  11    2
-*   DEY                                 ;  13    5*n-1 = 94
-    BNE -                               ;
-    NOP                                 ;  107   2
-    NOP                                 ;  109   2
-    NOP                                 ;  111   2
-    NOP                                 ;  113   2
-    LSR  ; next bit (when empty, 0)     ;  115   2
-    DEX                                 ;  117   2
-    BNE sendloop                        ;  119   3
-                                        ;  122 (115200 baud @14Mhz)
-    RTS
+
 
     ; send null-terminated string
     ; parameter: Y,X = address of string (X = high byte)
@@ -71,36 +61,154 @@ sendstrloop:
 sendstrend:
     RTS    
 
-    ; read state of the IRQB pin
-    ; return: c flag is set if the pin is low
-    ; the whole procedure takes 42 cycles including
-    ; the calling JSR
-    ; the sampling point is at 10 clocks 
-getirqb:                        ; total cycles
-    CLC                         ; 6     2
-    CLI                         ; 8     2
-      ; <- possible interrupt     10    0/22
-    SEI                         ; 10/32 2
-    BCC +                       ; 12/34 3/2
-    RTS                         ;    36 6
-*   PHA                         ; 15    4
-    PLA                         ; 19    3
-    PHA                         ; 22    4
-    PLA                         ; 26    3
-    PHA                         ; 29    4
-    PLA                         ; 33    3
-    RTS                         ; 36    6
-                                ; 42/42
-                                
+    
+    ; send decimal representation of a number
+    ; parameter: A = number
+sendnum:
+     LDX #'0
+computedigit_100:
+    CMP #100
+    BMI senddigit_100 
+    SEC
+    SBC #100
+    INX
+    JMP computedigit_100    
+senddigit_100:
+    PHA 
+    TXA
+    JSR send
+    PLA
+     LDX #'0
+computedigit_10:
+    CMP #10
+    BMI senddigit_10
+    SEC
+    SBC #10
+    INX
+    JMP computedigit_10
+senddigit_10:
+    PHA 
+    TXA
+    JSR send
+    PLA
+     CLC    
+     ADC #'0
+    JMP send
+
+    
+    ; send one byte via serial 
+    ; does not damage any zero page data
+    ; parameter: A 
+send:
+    EOR #$FF ; use inverted bits, so stop-bit matches up
+    LDX #10  ; send 10 bits total
+    SEC      ; prepare inverted start bit
+sendloop:                               ;  total cycles
+    BCC setoutputhigh                   ;  0     2/3
+setoutputlow:                           ;
+    INC $8000  ; multibyte-operation    ;  2     6
+    JMP setoutputdone                   ;  8     3
+setoutputhigh:
+    CMP $00    ; any access to RAM      ;  3     3
+    CMP $00                             ;  6     3
+    `DELAY2                             ;  9     2
+setoutputdone:                          ;  11
+    `DELAY10                            ;  11    10
+    `DELAY10                            ;  21    10
+    `DELAY10                            ;  31    10
+    `DELAY10                            ;  41    10
+    `DELAY10                            ;  51    10
+    `DELAY10                            ;  61    10
+    `DELAY5                             ;  71    5
+    `DELAY2                             ;  76    2
+    `DELAY2                             ;  78    2
+    LSR  ; next bit (when empty, 0)     ;  80    2
+    DEX                                 ;  82    2
+    BNE sendloop                        ;  84    3
+                                        ;  87
+    RTS
+
+
+    ; receive serial data.
+    ; parameter: A = time to wait for data (when 0: indefinite)
+    ; return:    A = received byte
+    ;            X = number of bytes received (1 or 0 in case of timeout)
+receive:
+    TAX
+    ; wait for low state (start of start bit)
+    CLC
+    CLI
+waitforstartbit:
+    BCS startbitfound
+    TXA
+    BCS startbitfound
+    BEQ waitforstartbit
+    BCS startbitfound
+    DEX
+    BCS startbitfound
+    BNE waitforstartbit
+    BCS startbitfound
+    SEI
+    BCS startbitfound
+    LDX #0
+    RTS
+startbitfound:                  ; approx. 30 after edge
+    SEI                         ; 30    2
+    LDA #0  ; buffer            ; 32    3
+    LDX #8  ; bit counter       ; 35    3
+    `DELAY10                    ; 38    10
+    `DELAY10                    ; 48    10
+    `DELAY10                    ; 58    10
+    `DELAY10                    ; 68    10
+    `DELAY10                    ; 78    10
+    `DELAY10                    ; 88    10
+    `DELAY10                    ; 98    10
+    `DELAY10                    ; 108   10
+       ; <- middle of 1. bit    ; 118     
+bitreceiveloop:                 ; 
+    CLC                         ; 0     2
+    CLI                         ; 2     2
+      ; <- possible interrupt     4     0/26
+    SEI                         ; 4/30  2
+    BCS +                       ; 6/32  2/3
+    `DELAY10                    ; 8     10
+    `DELAY10                    ; 18    10
+    `DELAY5                     ; 28    5
+    `DELAY2                     ; 33    2
+*   ROR                         ; 35    2
+    `DELAY10                    ; 37    10
+    `DELAY10                    ; 47    10
+    `DELAY10                    ; 57    10
+    `DELAY10                    ; 67    10
+    `DELAY2                     ; 77    2
+    `DELAY2                     ; 79    2
+    DEX                         ; 81    2
+    BNE bitreceiveloop          ; 83    3/2
+                                ; 86  ???
+    ; revert input bits
+    EOR #$FF   
+    LDX #1
+waitforstopbit:
+    CLC
+    CLI
+      ; <- possible interrupt
+    SEI
+    BCS waitforstopbit
+    RTS
+
+
     ; Interrupt handler to trigger when the IRQB pin is low. 
-    ; It will just set the C flag (and damage the A register). 
+    ; It will just set the C flag (and overwrite the Y register). 
     ; Also it will disable interrupts upon exit.
+    ; Other flags remain unchanged
 irqhandler:                     ;       
-    PLA                         ; 7     4
-    ORA #$05                    ; 11    2
-    PHA                         ; 13    3
-    RTI                         ; 16    6
-                                ; 22
+    TAY                         ; 7     2
+    PLA                         ; 9     4
+    ORA #$05                    ; 13    2
+    PHA                         ; 15    3
+    TYA                         ; 18    2
+    RTI                         ; 20    6
+                                ; 26
 
     ; vector table
     .advance $FFFA, $FF
