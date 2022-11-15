@@ -1,30 +1,46 @@
 ; This program needs to be assembled with the Ophis assembler 
-
+; Simple demo to write a string and then echo the received input
+; characters as decimal ascii values.
+ 
 .outfile "hello.bin"
 .org  $8000
+
+.alias buffer        $200
+.alias receivedbytes $300
+.alias sentbytes     $301
 
 main: 
     LDY #<message
     LDX #>message
     JSR sendstr
-    LDA #47
-    JSR sendnum
-    LDA #11
-    JSR sendnum
-    LDY #<crlf
-    LDX #>crlf
-    JSR sendstr
-mainloop:    
+mainloop:
+    LDY #<buffer
+    LDX #>buffer
+    LDA #250
+    JSR receiveburst    
+    STA receivedbytes
+    JSR sendnum   
     LDA #0
-    JSR receive
-    JSR sendnum
+    STA sentbytes
+echoloop:
     LDA #32
     JSR send
-    jmp mainloop
+    LDA sentbytes
+    CMP receivedbytes
+    BEQ echoloopdone
+    TAY 
+    LDA buffer,Y
+    JSR sendhex
+    INC sentbytes
+    JMP echoloop
+echoloopdone:
+    LDA #13
+    JSR send
+    LDA #10
+    JSR send
+    JMP mainloop
     
 message: 
     .byte "Hello world ", 13, 10, 0
-crlf:
-    .byte 13, 10, 0
 
 .include "boot.oph"

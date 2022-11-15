@@ -62,39 +62,59 @@ sendstrend:
     RTS    
 
     
+    ; send 2-digit hexadecimal representation of a number
+    ; parameter: A = number
+sendhex:
+    LDX #16
+    JSR sendhighdigit
+    LDX #1
+    JMP sendhighdigit
+  
+  
     ; send decimal representation of a number
     ; parameter: A = number
 sendnum:
-     LDX #'0
-computedigit_100:
-    CMP #100
-    BMI senddigit_100 
-    SEC
-    SBC #100
-    INX
-    JMP computedigit_100    
-senddigit_100:
-    PHA 
-    TXA
-    JSR send
-    PLA
-     LDX #'0
-computedigit_10:
     CMP #10
-    BMI senddigit_10
-    SEC
-    SBC #10
-    INX
-    JMP computedigit_10
-senddigit_10:
-    PHA 
-    TXA
-    JSR send
-    PLA
-     CLC    
-     ADC #'0
-    JMP send
+    BCC sendnum1digits
+    CMP #100
+    BCC sendnum2digits
+    LDX #100
+    JSR sendhighdigit
+sendnum2digits:
+    LDX #10
+    JSR sendhighdigit
+sendnum1digits:
+    LDX #1
+    JMP sendhighdigit
 
+  
+    ; send highest digit of a number and return the number
+    ; without this digit
+    ; parameter: A = number
+    ;            X = value of one digit (e.g. 100)
+    ; return:    A = number without highest digit
+sendhighdigit:
+    LDY $00  ; keep temporarily
+    STX $00
+    LDX #48  ; ascii '0'
+*   CMP $00
+    BCC highestdigitcomputed     ; if A < digit
+    SEC
+    SBC $00
+    INX
+    JMP -    
+highestdigitcomputed:
+    STY $00  ;  repair zero page
+    PHA
+    TXA
+    CMP #58
+    BCC +          ; if A < 58
+    CLC
+    ADC #7
+*   JSR send    
+    PLA
+    RTS
+    
     
     ; send one byte via serial 
     ; does not damage any zero page data
@@ -126,6 +146,41 @@ setoutputdone:                          ;  11
     DEX                                 ;  82    2
     BNE sendloop                        ;  84    3
                                         ;  87
+    RTS
+
+
+    ; receive a burst of serial data.
+    ; parameter: Y,X = address of buffer (X = high byte)
+    ;            A = length of buffer
+    ; return A = number of bytes received
+    ; overwrite zero page $00 - $03
+receiveburst:
+    STY $00  ; buffer address lo
+    STX $01  ; buffer address high
+    STA $02  ; buffer size
+    LDA #0
+    STA $03  ; bytes received
+    CMP $02
+    BEQ receiveburstend  ; buffer full?
+    LDA #0   ; wait indefinitely for 1. byte
+    JSR receive
+    LDY #0
+    STA ($00),Y
+    INC $03
+continuereceiveburst:
+    LDA $03
+    CMP $02
+    BEQ receiveburstend
+    LDA #100 ; wait some time to see if burst continues
+    JSR receive
+    CPX #0
+    BEQ receiveburstend
+    LDY $03
+    STA ($00),Y
+    INC $03
+    JMP continuereceiveburst
+receiveburstend:
+    LDA $03
     RTS
 
 
