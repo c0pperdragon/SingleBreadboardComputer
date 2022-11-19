@@ -66,4 +66,4 @@ a simple demonstration of the IO possibilities. It writes a short message to the
 output and then waits for incomming bytes, which it will then write in hex digits
 back to the output.
 
-Communication is done with 115200 bauds, one start bit, one stop bit.
+Communication is done with 115200 baud, one start bit, one stop bit.
