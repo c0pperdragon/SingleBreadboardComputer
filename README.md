@@ -63,7 +63,7 @@ This is enough to drive a serial output signal in software
 ## Proof-of-concept software
 I don't intend to do much more programming on this device, but I have implemented
 a simple demonstration of the IO possibilities. It writes a short message to the
-output and then waits for input bytes, which it will then writes as in hex digits
+output and then waits for incomming bytes, which it will then write in hex digits
 back to the output.
 
 Communication is done with 115200 bauds, one start bit, one stop bit.
