@@ -37,7 +37,7 @@ implementation is that the access time for the RAM is reduced to
 only half a clock cycle, so I use an extra fast RAM here (12ns access time).
 
 ## Serial input
-Receiving incomming data can be done purely in software when using the IRQB
+Receiving incoming data can be done purely in software when using the IRQB
 pin of the CPU. It requires some serious cycle-counting in implementing the 
 software, but It can be done somehow.
 
@@ -63,7 +63,7 @@ This is enough to drive a serial output signal in software
 ## Proof-of-concept software
 I don't intend to do much more programming on this device, but I have implemented
 a simple demonstration of the IO possibilities. It writes a short message to the
-output and then waits for incomming bytes, which it will then write in hex digits
+output and then waits for incoming bytes, which it will then write in hex digits
 back to the output.
 
 Communication is done with 115200 baud, one start bit, one stop bit.
